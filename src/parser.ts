@@ -41,6 +41,28 @@ export interface ParsedTransaction {
   transactedAt: string;
 }
 
+/**
+ * Whether an email looks like money-movement mail at all.
+ *
+ * Most emails that fail to parse are supposed to fail: marketing blasts,
+ * statement-ready notices, competition mailers. Use this to tell those apart
+ * from a real transaction the parser couldn't handle — e.g. to alert only on
+ * the latter.
+ *
+ * `"Available balance:"` covers card payments, payments, debit orders, incoming
+ * payments and ATM withdrawals. Transfers and forex transfers omit it, so the
+ * exchange-rate line stands in for those.
+ */
+export function looksTransactional(rawText: string): boolean {
+  const text = normalizeEmailText(rawText);
+  return TRANSACTIONAL_MARKERS.some(re => re.test(text));
+}
+
+const TRANSACTIONAL_MARKERS = [
+  /Available\s+balance:/i,
+  /Exchange\s+Rate\s+1\s+\w+\s*=\s*[\d.]+\s+ZAR/i,
+];
+
 export interface ParseOptions {
   /**
    * When the email was received. Discovery's emails carry a day and month but
@@ -158,7 +180,17 @@ export function parseEmail(
   // card_reversal must be checked before card_payment
   let type: TransactionType | null = null;
   if      (/\bCard\s+payment\s+reversal\b/i.test(text)) type = 'card_reversal';
+  // Discovery labels a card refund "Cash deposit", but the body has card-payment
+  // shape: "MERCHANT – CURRENCY AMOUNT", "To Credit Card", "Card ending". Match
+  // on that shape, not the label alone, and treat it as a reversal so the refund
+  // nets against the original spend instead of being booked as income. A literal
+  // cash deposit (no card, no merchant) has no such line and stays unhandled.
+  else if (/\bCash\s+deposit\b/i.test(text) && /\bCard\s+ending\b/i.test(text)) type = 'card_reversal';
   else if (/\bCard\s+payment\b/i.test(text))            type = 'card_payment';
+  // Discovery Pay is a person-to-person send. It's a payment in every respect
+  // the model cares about, so it shares the 'payment' type rather than adding
+  // one; checked early because "Pay" never matches the generic branch below.
+  else if (/\bDiscovery\s+Pay\b/i.test(text))           type = 'payment';
   else if (/\bIncoming\s+payment\b/i.test(text))        type = 'incoming_payment';
   else if (/\bATM\s+withdrawal\b/i.test(text))          type = 'atm_withdrawal';
   else if (/\bDebit\s+order\b/i.test(text))             type = 'debit_order';
@@ -182,8 +214,8 @@ export function parseEmail(
   const refMatch = text.match(/Reference:\s+(.+?)(?=\s+(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\w*,|\s+Available\s+balance|$)/i);
   const reference = refMatch ? refMatch[1].trim() : undefined;
 
-  // Card ending
-  const cardMatch = text.match(/Card\s+ending\s+\*+(\d{4})/i);
+  // "Card ending ***1234" on card payments, "Card ending: ***1234" on refunds
+  const cardMatch = text.match(/Card\s+ending:?\s+\*+(\d{4})/i);
 
   // Account references
   const fromEndingMatch = text.match(/From\s+account\s+ending\s+(\*+\d{4})/i);
@@ -207,11 +239,12 @@ export function parseEmail(
       const isReversal = type === 'card_reversal';
       const direction  = isReversal ? 'credit' : 'debit';
 
-      // "Card payment [reversal] MERCHANT – CURRENCY AMOUNT"
+      // "Card payment [reversal] MERCHANT – CURRENCY AMOUNT", or the same line
+      // under Discovery's "Cash deposit" refund label.
       // Currency is R or ZAR for local transactions, 3-letter ISO code for foreign.
       // [–—-] covers en-dash, em-dash, and hyphen-minus.
       const lineMatch = text.match(
-        /Card\s+payment(?:\s+reversal)?\s+(.+?)\s+[–—-]\s+(R|ZAR|[A-Z]{3})\s*([\d,]+\.\d{2})/i
+        /(?:Card\s+payment(?:\s+reversal)?|Cash\s+deposit)\s+(.+?)\s+[–—-]\s+(R|ZAR|[A-Z]{3})\s*([\d,]+\.\d{2})/i
       );
       if (!lineMatch) return null;
 
@@ -277,11 +310,23 @@ export function parseEmail(
     }
 
     case 'payment': {
-      const match = text.match(/\bPayment\s+(?:R|ZAR)\s*([\d,]+\.\d{2})/i);
+      // "Payment R 300.00 From Demand Savings Reference: Parking", or
+      // "Discovery Pay R 2.50 To Bob Smith From account ending ***1234".
+      const match = text.match(/\b(?:Discovery\s+Pay|Payment)\s+(?:R|ZAR)\s*([\d,]+\.\d{2})/i);
       if (!match) return null;
+
+      // Only Discovery Pay names the payee. Prefer it over the free-text
+      // reference: it's the counterparty, so money sent to someone lands on the
+      // same person as money received from them, where a chatty reference would
+      // group with nothing.
+      const payeeMatch = text.match(
+        /\bDiscovery\s+Pay\s+(?:R|ZAR)\s*[\d,]+\.\d{2}\s+To\s+(.+?)\s+(?:From\b|Reference:)/i
+      );
+
       return {
         type, direction: 'debit', amount: parseAmount(match[1]),
-        description: reference, fromAccountRaw, balanceAfter, transactedAt,
+        description: payeeMatch?.[1].trim() ?? reference,
+        fromAccountRaw, balanceAfter, transactedAt,
       };
     }
 

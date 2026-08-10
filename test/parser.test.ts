@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { parseEmail, deriveFlow, normalizeEmailText, DEFAULT_ACCOUNT_NAMES } from '../src/parser.js';
+import {
+  parseEmail,
+  deriveFlow,
+  looksTransactional,
+  normalizeEmailText,
+  DEFAULT_ACCOUNT_NAMES,
+} from '../src/parser.js';
 
 // Fixtures are synthetic but format-faithful copies of Discovery Bank
 // notification text — no real names, balances or card numbers. If Discovery
@@ -76,6 +82,36 @@ describe('card payments', () => {
   it('returns null when the merchant/amount line is missing', () => {
     expect(parseEmail('Card payment declined on your Credit Card')).toBeNull();
   });
+
+  // Discovery labels card refunds "Cash deposit" and writes "Card ending:"
+  // with a colon, unlike the payment emails.
+  it('parses a "Cash deposit" card refund as a reversal', () => {
+    const tx = parseEmail(
+      '--> Important notice Cash deposit East Midlands Railway Der – GBP 17.20 ' +
+      'To Credit Card Card ending: ***1234 Thursday, 16 July at 08:29 ' +
+      'Available balance: R79,392.86 For more info, call 0800 07 96 97'
+    );
+    expect(tx).toMatchObject({
+      type: 'card_reversal',
+      direction: 'credit',
+      amount: 0,
+      foreignAmount: 17.2,
+      foreignCurrency: 'GBP',
+      description: 'East Midlands Railway Der',
+      toAccountRaw: 'account ending ***1234',
+      balanceAfter: 79392.86,
+    });
+    expect(tx!.fromAccountRaw).toBeUndefined();
+    expect(deriveFlow(tx!.type, tx!.direction)).toBe('expense');
+  });
+
+  // "Cash deposit" without the card-payment shape is a different event and
+  // must not be forced into a reversal.
+  it('returns null for a cash deposit with no card line', () => {
+    expect(parseEmail(
+      'Cash deposit R 500.00 To Transaction Account Thursday, 16 July at 08:29'
+    )).toBeNull();
+  });
 });
 
 describe('other transaction types', () => {
@@ -128,6 +164,41 @@ describe('other transaction types', () => {
       description: 'RENT JULY',
       fromAccountRaw: 'Transaction Account',
     });
+  });
+
+  // Discovery Pay is labelled "Discovery Pay", not "Payment", and uniquely
+  // names the payee.
+  it('parses a Discovery Pay, preferring the payee over the reference', () => {
+    const tx = parseEmail(
+      '--> Important notice Discovery Pay R 2.50 To Bob Smith ' +
+      'From account ending ***5678 Reference: lunch money ' +
+      'Wednesday, 1 July at 09:00 Available balance: R 4,875.60'
+    );
+    expect(tx).toMatchObject({
+      type: 'payment',
+      direction: 'debit',
+      amount: 2.5,
+      description: 'Bob Smith',
+      fromAccountRaw: 'account ending ***5678',
+      balanceAfter: 4875.6,
+    });
+    expect(deriveFlow(tx!.type, tx!.direction)).toBe('expense');
+  });
+
+  it('parses a Discovery Pay with no reference line', () => {
+    const tx = parseEmail(
+      'Discovery Pay R 150.00 To Bob Smith From account ending ***5678 ' +
+      'Wednesday, 1 July at 09:00 Available balance: R 4,000.00'
+    );
+    expect(tx).toMatchObject({ type: 'payment', amount: 150, description: 'Bob Smith' });
+  });
+
+  it('still uses the reference for a plain payment, which names no payee', () => {
+    const tx = parseEmail(
+      'Payment R 300.00 From Demand Savings Reference: Parking ' +
+      'Wednesday, 1 July at 09:00 Available balance: R 111,115.96'
+    );
+    expect(tx).toMatchObject({ type: 'payment', amount: 300, description: 'Parking' });
   });
 
   it('parses a transfer between own accounts', () => {
@@ -296,6 +367,29 @@ describe('raw (un-normalised) email input', () => {
     const once = normalizeEmailText('<p>R&nbsp;1,120.00</p>  <b>x</b>');
     expect(normalizeEmailText(once)).toBe(once);
     expect(once).toBe('R 1,120.00 x');
+  });
+});
+
+describe('looksTransactional', () => {
+  it('recognises money-movement mail by its balance line', () => {
+    expect(looksTransactional(
+      'Card payment TEST ZA – R 10.00 Available balance: R 1,000.00'
+    )).toBe(true);
+  });
+
+  it('recognises transfers, which carry a rate line instead of a balance', () => {
+    expect(looksTransactional(
+      'Forex transfer R 3,296.84 to £ 149.04 Exchange Rate 1 GBP = 22.12 ZAR'
+    )).toBe(true);
+  });
+
+  it('rejects marketing and one-time-PIN mail', () => {
+    expect(looksTransactional('Your one-time PIN is 123456')).toBe(false);
+    expect(looksTransactional('Win a trip! Enter our competition today.')).toBe(false);
+  });
+
+  it('sees through HTML entities and tags', () => {
+    expect(looksTransactional('<p>Available&nbsp;balance: R&nbsp;1,000.00</p>')).toBe(true);
   });
 });
 

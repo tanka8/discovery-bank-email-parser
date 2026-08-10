@@ -125,9 +125,22 @@ Only process mail you trust. Balances and amounts come straight out of the email
 
 `TransactionType` is one of `card_payment`, `card_reversal`, `incoming_payment`, `payment`, `debit_order`, `forex_transfer`, `transfer`, `atm_withdrawal`.
 
+Two of Discovery's labels don't map to their own type. A **"Cash deposit"** email carrying a card line is a card refund, so it parses as `card_reversal` — the refund then nets against the original spend instead of showing up as income. **Discovery Pay** (person-to-person) parses as `payment`, and uniquely names the payee, which is used as `description` in preference to the free-text reference.
+
 ### `deriveFlow(type, direction): 'expense' | 'income' | 'transfer'`
 
 Collapses type and direction into the classification you actually budget on. Transfers between your own accounts are neither income nor spend, and card reversals stay `expense` so refunds subtract from net spend instead of inflating income.
+
+### `looksTransactional(rawText): boolean`
+
+Whether an email is money-movement mail at all. Most emails that fail to parse are *supposed* to fail — marketing, statement notices, competition mailers — so use this to tell those apart from a real transaction the parser couldn't handle, and alert only on the latter.
+
+```ts
+const tx = parseEmail(body);
+if (!tx && looksTransactional(body)) {
+  await alertMe('A transaction email did not parse', body);
+}
+```
 
 ### `normalizeEmailText(raw): string`
 

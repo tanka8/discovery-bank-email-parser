@@ -1,6 +1,7 @@
 export {
   parseEmail,
   normalizeEmailText,
+  looksTransactional,
   deriveFlow,
   DEFAULT_ACCOUNT_NAMES,
 } from './parser.js';
