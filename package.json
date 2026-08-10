@@ -1,0 +1,58 @@
+{
+  "name": "discovery-bank-email-parser",
+  "version": "1.0.0",
+  "description": "Parse Discovery Bank (South Africa) transaction notification emails into structured transactions. Zero dependencies, runs on Node, Cloudflare Workers, Deno and the browser.",
+  "keywords": [
+    "discovery-bank",
+    "south-africa",
+    "banking",
+    "email",
+    "parser",
+    "transactions",
+    "personal-finance",
+    "cloudflare-workers"
+  ],
+  "license": "MIT",
+  "author": "tanka8",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tanka8/discovery-bank-email-parser.git"
+  },
+  "bugs": {
+    "url": "https://github.com/tanka8/discovery-bank-email-parser/issues"
+  },
+  "homepage": "https://github.com/tanka8/discovery-bank-email-parser#readme",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "discovery-bank-email-parser": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}
