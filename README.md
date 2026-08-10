@@ -15,6 +15,14 @@ Discovery Bank has no public API, so the notification emails it sends on every c
 npm install discovery-bank-email-parser
 ```
 
+Or straight from source, which builds the TypeScript on install:
+
+```sh
+npm install github:tanka8/discovery-bank-email-parser#main
+```
+
+npm pins the exact commit in your lockfile, so builds stay reproducible; `npm update discovery-bank-email-parser` moves you to the latest `main`.
+
 ## Usage
 
 ```ts
