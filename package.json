@@ -1,6 +1,6 @@
 {
   "name": "discovery-bank-email-parser",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Parse Discovery Bank (South Africa) transaction notification emails into structured transactions. Zero dependencies, runs on Node, Cloudflare Workers, Deno and the browser.",
   "keywords": [
     "discovery-bank",
