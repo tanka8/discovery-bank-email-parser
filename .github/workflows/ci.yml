@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [18.x, 20.x, 22.x]
+        node-version: [18.x, 20.x, 22.x, 24.x]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -22,5 +22,11 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
+      # Vitest 4 needs Node 20+; on 18 the package is still smoke-tested below.
       - run: npm test
+        if: matrix.node-version != '18.x'
       - run: npm run build
+      - name: Smoke-test the built package
+        run: >-
+          node --input-type=module -e "import { normalizeEmailText } from './dist/index.js';
+          if (normalizeEmailText('R&nbsp;1.00') !== 'R 1.00') process.exit(1);"
