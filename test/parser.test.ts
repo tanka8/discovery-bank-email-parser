@@ -368,6 +368,12 @@ describe('raw (un-normalised) email input', () => {
     expect(normalizeEmailText(once)).toBe(once);
     expect(once).toBe('R 1,120.00 x');
   });
+
+  it('normalizeEmailText decodes &amp; last, so escaped entities stay escaped', () => {
+    expect(normalizeEmailText('Tom &amp; Jerry')).toBe('Tom & Jerry');
+    expect(normalizeEmailText('a &amp;lt;b&amp;gt; c')).toBe('a &lt;b&gt; c');
+    expect(normalizeEmailText('&amp;quot;x&amp;#39;')).toBe('&quot;x&#39;');
+  });
 });
 
 describe('looksTransactional', () => {
