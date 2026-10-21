@@ -374,6 +374,56 @@ describe('raw (un-normalised) email input', () => {
     expect(normalizeEmailText('a &amp;lt;b&amp;gt; c')).toBe('a &lt;b&gt; c');
     expect(normalizeEmailText('&amp;quot;x&amp;#39;')).toBe('&quot;x&#39;');
   });
+
+  it('removes whole <style> and <script> blocks, in any case', () => {
+    expect(normalizeEmailText('a<style>.x{}</style>b')).toBe('a b');
+    expect(normalizeEmailText('a<STYLE type="text/css">.x{}</Style>b')).toBe('a b');
+    expect(normalizeEmailText('a<script>if (a < b) {}</script>b')).toBe('a b');
+    expect(normalizeEmailText('a<style>one</style> mid <script>two</script> z')).toBe('a mid z');
+  });
+
+  it('leaves the text after an unclosed <style> or <script> tag in place', () => {
+    expect(normalizeEmailText('x <style> y')).toBe('x y');
+    expect(normalizeEmailText('x <script src="s.js"> y')).toBe('x y');
+    expect(normalizeEmailText('<style>a</style><style>b')).toBe('b');
+  });
+
+  it('treats near-misses as ordinary tags and text', () => {
+    expect(normalizeEmailText('<styles>keep</styles>')).toBe('keep');
+    expect(normalizeEmailText('<style>a</style >b')).toBe('a b'); // not a closer
+    expect(normalizeEmailText('a <> b')).toBe('a <> b');          // empty tag is not a tag
+    expect(normalizeEmailText('<<a>b')).toBe('b');
+    expect(normalizeEmailText('a &lt;style&gt; b')).toBe('a <style> b');
+  });
+
+  // Regression: the block and tag patterns rescanned to the end of the input
+  // from every unclosed `<`, so a few hundred KB of `<style` took minutes. This
+  // runs on mail from anyone who can reach the address, before any sender check.
+  it.each([
+    ['<style'.repeat(100_000)],
+    ['<script'.repeat(100_000)],
+    ['<style>'.repeat(100_000)],
+    ['<style<script'.repeat(50_000)],
+    ['<'.repeat(100_000)],
+    ['<a '.repeat(100_000)],
+  ])('normalises hostile input in linear time (%#)', (input) => {
+    vi.useRealTimers(); // the suite fakes timers, and a frozen clock would pass anything
+    const started = performance.now();
+    normalizeEmailText(input);
+    expect(performance.now() - started).toBeLessThan(1000);
+  });
+
+  it('parses a transaction whose reference is full of unclosed tags without stalling', () => {
+    vi.useRealTimers();
+    const started = performance.now();
+    const tx = parseEmail(
+      `Incoming payment R 5.00 To Transaction Account Reference: ${'<style'.repeat(50_000)} ` +
+      'Friday, 5 June at 17:42 Available balance: R 15,000.00',
+      '2026-06-05T16:00:00Z',
+    );
+    expect(performance.now() - started).toBeLessThan(1000);
+    expect(tx).toMatchObject({ type: 'incoming_payment', amount: 5, balanceAfter: 15000 });
+  });
 });
 
 describe('looksTransactional', () => {

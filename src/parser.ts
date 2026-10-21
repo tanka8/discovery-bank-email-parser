@@ -127,6 +127,63 @@ function dateAnchor(value?: Date | string): Date {
 }
 
 /**
+ * Replace each `<style>…</style>` / `<script>…</script>` block with a space.
+ * Equivalent to `/<(style|script)\b[^>]*>[\s\S]*?<\/\1>/gi`, but linear: that
+ * pattern rescans to the end of the input from every opening tag that has no
+ * closer, so a few hundred KB of `<style` took minutes. An opener with no
+ * closing tag is left in place (the tag pass removes the tag itself).
+ */
+function stripStyleAndScriptBlocks(raw: string): string {
+  const open = /<(style|script)\b/gi;
+  const closers = { style: /<\/style>/gi, script: /<\/script>/gi };
+  // Once a search for a closer fails, no later opener of that kind can have one.
+  const exhausted = { style: false, script: false };
+  let out = '';
+  let cursor = 0;
+  let match: RegExpExecArray | null;
+  while ((match = open.exec(raw)) !== null) {
+    const kind = match[1].toLowerCase() as 'style' | 'script';
+    if (exhausted[kind]) continue;
+    const tagEnd = raw.indexOf('>', open.lastIndex);
+    if (tagEnd === -1) break; // no `>` left, so no later opening tag can complete either
+    const closer = closers[kind];
+    closer.lastIndex = tagEnd + 1;
+    const close = closer.exec(raw);
+    if (!close) {
+      exhausted[kind] = true;
+      continue;
+    }
+    out += raw.slice(cursor, match.index) + ' ';
+    cursor = close.index + close[0].length;
+    open.lastIndex = cursor;
+  }
+  return cursor === 0 ? raw : out + raw.slice(cursor);
+}
+
+/**
+ * Replace each tag with a space. Equivalent to `.replace(/<[^>]+>/g, ' ')`
+ * (so `<>` is not a tag), but linear: the regex rescans to the end of the
+ * input from every `<` that has no `>` after it.
+ */
+function stripTags(raw: string): string {
+  let out = '';
+  let cursor = 0;
+  let start = raw.indexOf('<');
+  while (start !== -1) {
+    const end = raw.indexOf('>', start + 1);
+    if (end === -1) break; // no `>` left, so no later tag can complete either
+    if (end === start + 1) {
+      start = raw.indexOf('<', end);
+      continue;
+    }
+    out += raw.slice(cursor, start) + ' ';
+    cursor = end + 1;
+    start = raw.indexOf('<', cursor);
+  }
+  return cursor === 0 ? raw : out + raw.slice(cursor);
+}
+
+/**
  * Strip `<style>`/`<script>` blocks and tags, decode the HTML entities
  * Discovery's emails use, and collapse whitespace — so `"R&nbsp;1,120.00"`
  * becomes `"R 1,120.00"` and the amount patterns (which expect a literal space
@@ -137,9 +194,7 @@ function dateAnchor(value?: Date | string): Date {
  * normalised text is a no-op.
  */
 export function normalizeEmailText(raw: string): string {
-  return raw
-    .replace(/<(style|script)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ')
+  return stripTags(stripStyleAndScriptBlocks(raw))
     .replace(/&nbsp;/gi, ' ')
     .replace(/&lt;/gi, '<')
     .replace(/&gt;/gi, '>')
