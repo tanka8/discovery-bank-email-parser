@@ -26,7 +26,7 @@ describe('card payments', () => {
   it('parses a local (ZAR) card payment', () => {
     const tx = parseEmail(
       'Dear Customer, Card payment Temu.com Dublin IE – R 388.00 From Credit Card ' +
-      'Card ending ***1234 Thursday, 16 July at 08:29 Available balance: R 98067.39 ' +
+      'Card ending ***1234 Thursday, 16 July at 08:29 Available balance: R 12345.67 ' +
       'For more info, call 0800 07 96 97'
     );
     expect(tx).toMatchObject({
@@ -35,7 +35,7 @@ describe('card payments', () => {
       amount: 388,
       description: 'Temu.com Dublin IE',
       fromAccountRaw: 'account ending ***1234',
-      balanceAfter: 98067.39,
+      balanceAfter: 12345.67,
       transactedAt: '2026-07-16T08:29:00.000+02:00',
     });
     expect(tx?.toAccountRaw).toBeUndefined();
@@ -44,16 +44,16 @@ describe('card payments', () => {
   it('parses amounts and balances containing thousands separators', () => {
     const tx = parseEmail(
       'Card payment WOOLWORTHS BLUE BIRD ZA – R 1,259.45 From Credit Card ' +
-      'Card ending ***1234 Sunday, 12 July at 11:32 Available balance: R 101,567.80'
+      'Card ending ***1234 Sunday, 12 July at 11:32 Available balance: R 23,456.78'
     );
     expect(tx?.amount).toBe(1259.45);
-    expect(tx?.balanceAfter).toBe(101567.8);
+    expect(tx?.balanceAfter).toBe(23456.78);
   });
 
   it('parses a card payment reversal as a credit to the card', () => {
     const tx = parseEmail(
       'Card payment reversal Takealot Cape Town ZA – R 250.00 To Credit Card ' +
-      'Card ending ***1234 Wednesday, 15 July at 09:57 Available balance: R 98705.39'
+      'Card ending ***1234 Wednesday, 15 July at 09:57 Available balance: R 12345.67'
     );
     expect(tx).toMatchObject({
       type: 'card_reversal',
@@ -89,7 +89,7 @@ describe('card payments', () => {
     const tx = parseEmail(
       '--> Important notice Cash deposit East Midlands Railway Der – GBP 17.20 ' +
       'To Credit Card Card ending: ***1234 Thursday, 16 July at 08:29 ' +
-      'Available balance: R79,392.86 For more info, call 0800 07 96 97'
+      'Available balance: R34,567.89 For more info, call 0800 07 96 97'
     );
     expect(tx).toMatchObject({
       type: 'card_reversal',
@@ -99,7 +99,7 @@ describe('card payments', () => {
       foreignCurrency: 'GBP',
       description: 'East Midlands Railway Der',
       toAccountRaw: 'account ending ***1234',
-      balanceAfter: 79392.86,
+      balanceAfter: 34567.89,
     });
     expect(tx!.fromAccountRaw).toBeUndefined();
     expect(deriveFlow(tx!.type, tx!.direction)).toBe('expense');
@@ -172,7 +172,7 @@ describe('other transaction types', () => {
     const tx = parseEmail(
       '--> Important notice Discovery Pay R 2.50 To Bob Smith ' +
       'From account ending ***5678 Reference: lunch money ' +
-      'Wednesday, 1 July at 09:00 Available balance: R 4,875.60'
+      'Wednesday, 1 July at 09:00 Available balance: R 1,234.56'
     );
     expect(tx).toMatchObject({
       type: 'payment',
@@ -180,7 +180,7 @@ describe('other transaction types', () => {
       amount: 2.5,
       description: 'Bob Smith',
       fromAccountRaw: 'account ending ***5678',
-      balanceAfter: 4875.6,
+      balanceAfter: 1234.56,
     });
     expect(deriveFlow(tx!.type, tx!.direction)).toBe('expense');
   });
@@ -196,7 +196,7 @@ describe('other transaction types', () => {
   it('still uses the reference for a plain payment, which names no payee', () => {
     const tx = parseEmail(
       'Payment R 300.00 From Demand Savings Reference: Parking ' +
-      'Wednesday, 1 July at 09:00 Available balance: R 111,115.96'
+      'Wednesday, 1 July at 09:00 Available balance: R 45,678.90'
     );
     expect(tx).toMatchObject({ type: 'payment', amount: 300, description: 'Parking' });
   });
@@ -630,14 +630,14 @@ describe('raw (un-normalised) email input', () => {
       "<style>.x{font-family:'Open Sans'}</style> Important notice " +
       'Incoming payment R&nbsp;13,106.43 To account ending ***5678 ' +
       'Reference: Sam Nkosi Monday, 29 June at 14:07 ' +
-      'Available balance: R 34,090.32'
+      'Available balance: R 56,789.01'
     );
     expect(tx).toMatchObject({
       type: 'incoming_payment',
       direction: 'credit',
       amount: 13106.43,
       description: 'Sam Nkosi',
-      balanceAfter: 34090.32,
+      balanceAfter: 56789.01,
     });
   });
 

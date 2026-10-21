@@ -385,7 +385,7 @@ export function parseEmail(
   const transactedAt = dateMatch ? parseDate(dateMatch[1], anchor) : null;
   if (!dateMatch || !transactedAt) return null;
 
-  // Available balance — Discovery sometimes omits the space: "R37,083.18".
+  // Available balance — Discovery sometimes omits the space: "R12,345.67".
   // Likewise the last one is the bank's. It follows the date line, so ignore
   // anything before it: some emails (e.g. foreign card payments) carry no
   // balance, and a balance inside the merchant text must not stand in for it.

@@ -11,15 +11,13 @@ Discovery Bank has no public API, so the notification emails it sends on every c
 
 ## Install
 
-```sh
-npm install discovery-bank-email-parser
-```
-
-Or straight from source, which builds the TypeScript on install:
+Install straight from GitHub; the TypeScript is built on install:
 
 ```sh
 npm install github:tanka8/discovery-bank-email-parser#main
 ```
+
+**This package is not published on the npm registry.** The bare `npm install discovery-bank-email-parser` does not install this project, and anyone could publish something under that name, so always use the GitHub form above.
 
 npm pins the exact commit in your lockfile, so builds stay reproducible; `npm update discovery-bank-email-parser` moves you to the latest `main`.
 
@@ -30,7 +28,7 @@ import { parseEmail, deriveFlow } from 'discovery-bank-email-parser';
 
 const tx = parseEmail(
   'Card payment WOOLWORTHS BLUE BIRD ZA – R 1,259.45 From Credit Card ' +
-  'Card ending ***1234 Sunday, 12 July at 11:32 Available balance: R 101,567.80'
+  'Card ending ***1234 Sunday, 12 July at 11:32 Available balance: R 12,345.67'
 );
 
 // {
@@ -39,7 +37,7 @@ const tx = parseEmail(
 //   amount: 1259.45,
 //   description: 'WOOLWORTHS BLUE BIRD ZA',
 //   fromAccountRaw: 'account ending ***1234',
-//   balanceAfter: 101567.8,
+//   balanceAfter: 12345.67,
 //   transactedAt: '2026-07-12T11:32:00.000+02:00',
 // }
 
@@ -70,11 +68,11 @@ Masked account numbers (`From account ending ***5678`) and card numbers (`Card e
 ## CLI
 
 ```sh
-cat notification.html | npx discovery-bank-email-parser
-cat old-email.txt   | npx discovery-bank-email-parser --received-at 2025-06-30T06:05:00Z
+cat notification.html | npx github:tanka8/discovery-bank-email-parser
+cat old-email.txt   | npx github:tanka8/discovery-bank-email-parser -- --received-at 2025-06-30T06:05:00Z
 ```
 
-Prints the parsed transaction as JSON (with `flow` added), or exits `1` if the email isn't a recognised transaction notification.
+Prints the parsed transaction as JSON (with `flow` added), or exits `1` if the email isn't a recognised transaction notification. With the package installed in your project (see [Install](#install)), `npx discovery-bank-email-parser` runs the local copy instead.
 
 ## Cloudflare Email Workers
 
@@ -96,6 +94,8 @@ export default {
 
 Only process mail you trust. Balances and amounts come straight out of the email body, so anyone who can deliver mail to that address can write to your ledger — check the sender against `discovery.bank` (or your own forwarding address) before parsing.
 
+The free-text parts of an email — the `Reference:` line (chosen by whoever pays you) and the merchant text on card payments — are treated as untrusted. They only ever become `description`: the transaction type, amount, date, balance and accounts are read from the bank's own text around them, so a crafted reference can't turn income into spend or change an amount. That protects the parse, not the sender: it does not replace the sender check above.
+
 ## API
 
 ### `parseEmail(rawText, options?): ParsedTransaction | null`
@@ -115,7 +115,7 @@ Only process mail you trust. Balances and amounts come straight out of the email
 | `direction` | `'debit' \| 'credit'` | |
 | `amount` | `number` | ZAR. `0` for foreign card payments — see `foreignAmount` |
 | `foreignAmount` | `number?` | Present for foreign card payments and forex transfers |
-| `foreignCurrency` | `string?` | ISO 4217 code |
+| `foreignCurrency` | `string?` | ISO 4217 code. For forex transfers it comes from the `Exchange Rate 1 XXX = … ZAR` line when present, else from the `£` / `$` / `€` symbol |
 | `exchangeRate` | `number?` | ZAR per unit of `foreignCurrency`, forex transfers only |
 | `description` | `string?` | Merchant name, or the `Reference:` line |
 | `fromAccountRaw` | `string?` | e.g. `'Transaction Account'`, `'account ending ***1234'` |
