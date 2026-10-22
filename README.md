@@ -162,6 +162,8 @@ npm test
 npm run build
 ```
 
+Running the tests needs Node 22.12 or later (Vitest 5). The library itself still supports Node 18+; CI typechecks, builds and smoke-tests it on 18 and 20, and runs the tests on 22 and 24.
+
 Test fixtures are synthetic but format-faithful. When Discovery changes a format, fix the parser first, then update the fixture to the new real format.
 
 ## Credits

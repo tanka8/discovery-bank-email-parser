@@ -22,9 +22,11 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
-      # Vitest 4 needs Node 20+; on 18 the package is still smoke-tested below.
+      # Vitest 5 needs Node 22.12+, so the unit tests run on 22 and 24 only. On 18 and 20
+      # the package is still typechecked, built and smoke-tested below. Keep every matrix
+      # entry: the "Protect main" ruleset requires the checks "test (18.x)" to "test (24.x)".
       - run: npm test
-        if: matrix.node-version != '18.x'
+        if: matrix.node-version == '22.x' || matrix.node-version == '24.x'
       - run: npm run build
       - name: Smoke-test the built package
         run: >-
