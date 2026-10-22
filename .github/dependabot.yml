@@ -1,0 +1,24 @@
+version: 2
+updates:
+  # devDependencies only (the package has no runtime dependencies).
+  # Minor and patch updates arrive as one weekly PR; each major gets its own PR.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      npm-minor-and-patch:
+        update-types:
+          - minor
+          - patch
+
+  # Workflow actions (actions/checkout, actions/setup-node, ...), same policy.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions-minor-and-patch:
+        update-types:
+          - minor
+          - patch
