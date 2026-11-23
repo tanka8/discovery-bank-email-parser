@@ -11,6 +11,13 @@ updates:
         update-types:
           - minor
           - patch
+    ignore:
+      # @types/node describes one Node major's API. Its major should follow the
+      # Node versions this package is built and tested for, not the newest
+      # Node: a newer one types APIs that do not exist on older runtimes, so the
+      # type check stops catching them. Move it by hand with "engines".
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
 
   # Workflow actions (actions/checkout, actions/setup-node, ...), same policy.
   - package-ecosystem: github-actions
